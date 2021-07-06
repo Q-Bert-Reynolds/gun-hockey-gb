@@ -71,6 +71,9 @@ rLCDInterrupt:: DW
 last_button_state:: DB
 button_state:: DB
 
+left_gun_angle:: DW
+right_gun_angle:: DW
+
 SECTION "Buffers", WRAMX
 ;buffers
 tile_buffer:: DS BUFFER_SIZE
