@@ -5,7 +5,7 @@ Entry:
   nop
   jp Main
   NINTENDO_LOGO
-  DB "TEXT EDITOR",0,0,0,0   ;Cart name - 15bytes
+  DB "GUN HOCKEY",0,0,0,0,0   ;Cart name - 15bytes
   DB CART_COMPATIBLE_DMG_GBC ;$143
   DB 0,0                     ;$144 - Licensee code (not important)
   DB CART_INDICATOR_SGB      ;$146 - SGB Support indicator
@@ -21,7 +21,7 @@ Entry:
 SECTION "VBlank", ROM0[$0040]
   jp VBLInterrupt
 SECTION "LCDC", ROM0[$0048]
-  jp HighlightInterrupt
+  reti
 SECTION "TimerOverflow", ROM0[$0050]
   reti
 SECTION "Serial", ROM0[$0058]
@@ -115,10 +115,7 @@ Main::
   ld [game_state], a
 
 .mainLoop
-    call KeyboardDemo
-    ; ld a, EDITOR_BANK
-    ; call SetBank
-    ; call OpenEditor
+    call GunHockey
     jr .mainLoop; TODO: if game finished, exit
 
   xor a

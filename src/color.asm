@@ -71,6 +71,13 @@ PaletteUI::
   COLOR_BLACK 
 PALETTE_UI EQU (PaletteUI-DefaultPalettes)/8
 
+PaletteGunHockey::
+  COLOR_BLACK 
+  COLOR_BLUE_GREY
+  COLOR_DARK_RED
+  COLOR_ALMOST_WHITE
+PALETTE_GUN_HOCKEY EQU (PaletteGunHockey-DefaultPalettes)/8
+
 PaletteDark::
   COLOR_ALMOST_WHITE
   COLOR_DARKER_GREY

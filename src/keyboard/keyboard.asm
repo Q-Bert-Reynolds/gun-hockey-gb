@@ -1,9 +1,15 @@
 INCLUDE "src/keyboard/usb_hid_keys.asm";USB HID key codes
 INCLUDE "src/keyboard/ps2_keys.asm";PS/2 keys codes
 
-KB_MODE_NONE EQU 0
-KB_MODE_PS2  EQU 1
-KB_MODE_IGKB EQU 2
+;kb_type
+KB_TYPE_NONE EQU 0
+KB_TYPE_PS2  EQU 1
+KB_TYPE_IGKB EQU 2
+
+;kb_mode
+KB_MODE_NONE    EQU 0
+KB_MODE_BUTTONS EQU 1
+KB_MODE_TYPING  EQU 2
 
 ;kb_error
 PS2_ERROR_TIMEOUT      EQU %100000
@@ -47,19 +53,24 @@ kb_error:: DB;xxTUKSPF - (T)imeout, (U)nknown Scan Code, (K)eyboard $00 or $FF, 
 kb_error_count:: DB
 kb_modifiers:: DB ;FSCAUPNL - (F)unction, (S)hift, (C)trl, (A)lt, S(U)per, Ca(P)s Lock, (N)um Lock, Scro(L)l Lock
 kb_flags:: DB;xxxxxxER - (E)xtended key flag, (R)elease key flag
+kb_type:: DB
 kb_mode:: DB
 
-SECTION "Keyboard Code", ROM0
+SECTION "Keyboard Code Bank 0", ROM0
+INCLUDE "src/keyboard/ps2_interrupt.asm"
+
+SECTION "Keyboard Code Bank X", ROMX
+INCLUDE "src/keyboard/kb_demo.asm"
+INCLUDE "src/keyboard/kb_debug_ui.asm"
 INCLUDE "src/keyboard/kb_jump_table.asm"
 INCLUDE "src/keyboard/kb_handlers.asm"
 INCLUDE "src/keyboard/ps2_ascii_keymaps.asm"
 INCLUDE "src/keyboard/ps2_handlers.asm"
-INCLUDE "src/keyboard/ps2_interrupt.asm"
 INCLUDE "src/keyboard/igkb_handlers.asm"
 
 DetectKeyboard::
-  ld a, KB_MODE_PS2
-  ld [kb_mode], a;assume PS2 keyboard connected
+  ld a, KB_TYPE_PS2
+  ld [kb_type], a;assume PS2 keyboard connected
   xor a
   ld [rSB], a
   ld a, SCF_TRANSFER_START | SCF_CLOCK_INTERNAL
@@ -68,18 +79,25 @@ DetectKeyboard::
   call gbdk_Delay
   ld a, [kb_error]
   cp a, PS2_ERROR_TIMEOUT | PS2_ERROR_PARITY_BIT | PS2_ERROR_FINISH_BIT
-  ret nz;if magic error code not received, PS2 connected
-  ld a, KB_MODE_IGKB
-  ld [kb_mode], a
+  jr nz, .usePS2Clock;if magic error code not received, PS2 connected
+  ld a, KB_TYPE_IGKB
+  ld [kb_type], a
+  ret
+.usePS2Clock
+  ld a, SCF_TRANSFER_START | SCF_CLOCK_EXTERNAL
+  ld [rSC], a;ask for bits using keyboard clock 
   ret
 
-ProcessKeyCodes:
+ProcessKeyCodes::
   ld a, [kb_mode]
+  and a
+  ret z;exit early if KB_MODE_NONE
+  ld a, [kb_type]
 .processPS2
-  cp a, KB_MODE_PS2
+  cp a, KB_TYPE_PS2
   jr z, ProcessPS2KeyCodes
 .processIGKB
-  cp a, KB_MODE_IGKB
+  cp a, KB_TYPE_IGKB
   ret nz;unknown mode
   ;fall through to process IG key codes
 

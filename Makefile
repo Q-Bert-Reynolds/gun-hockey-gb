@@ -1,4 +1,4 @@
-GAME_NAME = "Text Editor"
+GAME_NAME = "GUN HOCKEY"
 ROM_NAME = $(GAME_NAME).gbc
 ROM_FILE = $(DIST_DIR)/$(ROM_NAME)
 SYM_FILE = $(DIST_DIR)/$(GAME_NAME).sym
@@ -22,7 +22,6 @@ ifeq ($(OS), Windows_NT)
 else
 	open $(ROM_FILE)
 endif
-	
 
 clean:
 	# @rm -rf $(DIST_DIR)

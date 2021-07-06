@@ -1,16 +1,17 @@
 TODO:
 
-- .sav file should be a .txt file
-  - should span as many RAM banks as possible
-  - should have max line size of 1024
-- insert instead of override
-- add on-screen kb (in palce of debug info)
-  - auto hide on-screen kb when external kb recognized
-  - when kb visible, DPad selects kb keys
-    - A button selects presses key
-    - B button is backspace key
-  - when kb hidden, DPad moves cursor
-    - holding select should highlight characters
-      - could be a second character set for DMG, but HBlank would be cooler
-      - highlighting on GBC should be a simple palette change
-- word-wrap should be optional
+- stub out tiles
+- guns should fire bullets
+- bullets should move
+- bullets should bounce
+- puck should move (start as big circle)
+- puck should be spinning triangle
+- guns should have ammo
+  - click sfx when empty
+  - ammo goes up when bullets go on your side
+- AI aims at puck
+- 2 player
+  - local via keyboard
+  - link cable
+  - SNES second controller
+- fit in 32k?

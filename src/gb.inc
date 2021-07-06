@@ -17,7 +17,7 @@ INCLUDE "src/core.asm"
 INCLUDE "src/fade.asm"
 
 INCLUDE "src/keyboard/keyboard.asm"
-INCLUDE "src/gbedit.asm"
+INCLUDE "src/gun_hockey.asm"
 
 INCLUDE "src/wram.asm"
 INCLUDE "src/sram.asm"

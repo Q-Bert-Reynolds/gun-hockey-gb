@@ -1,3 +1,5 @@
+INCLUDE "src/gb.inc"
+
 SECTION "UI Bank 0", ROM0
 
 ; LoadFontTiles
@@ -78,7 +80,7 @@ FlashNextArrow:: ;a = draw flags, de = xy
   WAITPAD_UP
   ld l, 20
 .loop1 ;for (a = 20; a > 0; --a) {
-    UPDATE_INPUT_AND_JUMP_TO_IF_BUTTONS .exitFlashNextArrow, (PADF_A | PADF_B)
+    UPDATE_INPUT_AND_JUMP_TO_IF_BUTTONS .exitFlashNextArrow, (PADF_A | PADF_B | PADF_START)
     ld de, 10
     call gbdk_Delay
     dec l
@@ -96,7 +98,7 @@ FlashNextArrow:: ;a = draw flags, de = xy
 
   ld l, 20
 .loop2
-    UPDATE_INPUT_AND_JUMP_TO_IF_BUTTONS .exitFlashNextArrow, (PADF_A | PADF_B)
+    UPDATE_INPUT_AND_JUMP_TO_IF_BUTTONS .exitFlashNextArrow, (PADF_A | PADF_B | PADF_START)
     ld de, 10
     call gbdk_Delay
     dec l
@@ -233,11 +235,7 @@ DrawText:: ;a = draw flags, hl = text, de = xy, bc = max lines
     push af;draw flags
     push de;xy
     ld de, tile_buffer
-    ld a, "\n"
     call str_CopyLine
-    xor a
-   cp a, c;if length of line is 0, next line
-   jr z, .checkDone
     pop de;xy
     pop af;draw flags
     push af;draw flags
@@ -248,18 +246,14 @@ DrawText:: ;a = draw flags, hl = text, de = xy, bc = max lines
     ld bc, tile_buffer
     call SetTiles
     pop hl;line
-  .checkDone
     dec hl
     ld a, [hli]
     and a
     jr z, .exit
     pop de;xy
     inc e
-    pop af;draw flags
-    bit 2, a;DRAW_FLAGS_NO_SPACE
-    jr nz, .nextLine
     inc e;y+=2
-  .nextLine
+    pop af;draw flags
     pop bc;max lines
     dec c
     ret z
@@ -503,7 +497,6 @@ INCLUDE "img/ui_font.asm"
 ;UIShowTextEntry - a = draw flags, de = title, hl = str, c = max_len
 ;UIShowListMenu - a = draw flags, bc = xy, de = wh, text = [str_buffer], title = [name_buff], returns choice in a
 ;UIShowNumberPicker - a = draw flags, bc = xy, de = wh, h = max number, returns number in a (0 = cancel)
-;UIDrawSaveStats - a = draw flags, de = xy
 
 ; Text Entry
 LowerCase:             DB "abcdefghijklmnopqrstuvwxyz *():;[]#%-?!*+/.,↵", 0
@@ -899,6 +892,116 @@ UpdateTextEntryDisplay: ; hl = str, d = max_len
 
   ret
 
+DrawTextEntryBox:
+  ld de, str_buffer
+  ld bc, 46
+  ld a, [_c]
+  and a
+  jp nz, .shouldUseUpper
+.shouldUseLower;   if (c == 0) {
+  ld hl, UpperCase
+  call mem_Copy;     memcpy(str_buff, upper_case, 46);
+  ld bc, LowerCaseTitle;set_win_tiles(2,15,10,1,"lower case");
+  jr .setCaseTiles
+.shouldUseUpper;   else {
+  ld hl, LowerCase
+  call mem_Copy;     memcpy(str_buff, lower_case, 46);
+  ld bc, UpperCaseTitle;set_win_tiles(2,15,10,1,"UPPER CASE");
+.setCaseTiles
+  ld d, 2
+  ld e, 15
+  ld h, 10
+  ld l, 1
+  call gbdk_SetWinTiles
+  xor a
+  ld [_j], a
+.rowLoop;   for (j = 0; j < 5; ++j) {
+    xor a
+    ld [_i], a
+    ld a, [_j]
+    add a, a; j*2
+    ld de, 18
+    call math_Multiply; hl = 18 * j*2
+    ld b, h
+    ld c, l ;bc = j*2*18
+    ld hl, tile_buffer
+    add hl, bc ;tiles[j*2*18]
+    push hl
+    ld hl, str_buffer
+    ld a, [_j]
+    add a, a ;_j*2
+    add a, a ;_j*4
+    add a, a ;_j*8
+    ld c, a
+    ld a, [_j]
+    add a, c ;_j*9
+    ld c, a
+    add hl, bc ;str_buff[j*9]
+    ld d, h
+    ld e, l
+    pop hl ;tiles[j*2*18]
+  .collumnLoop1;     for (i = 0; i < 9; ++i) {
+      ld a, [_x]
+      ld b, a
+      ld a, [_i]
+      sub a, b
+      jr nz, .notArrowTile
+      ld a, [_y]
+      ld b, a
+      ld a, [_j]
+      sub a, b
+      jr nz, .notArrowTile;(x==i && y==j) ?
+      ld a, ARROW_RIGHT
+      ld [hli], a;tiles[j*2*18+i*2] = ARROW_RIGHT
+      jr .setCharTile
+    .notArrowTile
+      ld a, " "
+      ld [hli], a;tiles[j*2*18+i*2] = 0
+    .setCharTile
+      ld a, [de]
+      ld [hli], a ;tiles[j*2*18+i*2+1] = str_buff[j*9+i];
+      inc de
+      ld a, [_i]
+      inc a
+      ld [_i], a
+      sub 9
+      jr nz, .collumnLoop1
+
+    xor a
+    ld [_i], a
+    ld a, [_j]
+    add a, a; j*2
+    inc a ;j*2+1
+    ld de, 18
+    call math_Multiply; hl = 18 * (j*2+1)
+    ld b, h
+    ld c, l ;bc = (j*2+1)*18
+    ld hl, tile_buffer
+    add hl, bc ;tiles[(j*2+1)*18]
+  .collumnLoop2 ;for (i = 0; i < 9; ++i) {
+      ld a, " "
+      ld [hli], a ;tiles[(j*2+1)*18+i*2]   = " ";
+      ld [hli], a ;tiles[(j*2+1)*18+i*2+1] = " ";
+    ld a, [_i]
+    inc a
+    ld [_i], a
+    sub 9
+    jp nz, .collumnLoop2
+
+  ld a, [_j]
+  inc a
+  ld [_j], a
+  sub a, 5
+  jp nz, .rowLoop
+
+  ld d, 1
+  ld e, 5
+  ld h, 18
+  ld l, 9
+  ld bc, tile_buffer
+  call gbdk_SetWinTiles;set_win_tiles(1,5,18,9,tile_buffer);
+  ret
+
 UIShowTextEntry:: ; de = title, hl = str, c = max_len
   PUSH_VAR _c
   PUSH_VAR _i
@@ -921,6 +1024,9 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
   xor a
   ld [rWY], a; move_win(7,0);
 
+  TRAMPOLINE DetectKeyboard
+  ld a, KB_MODE_TYPING
+  ld [kb_mode], a
   
   pop hl;title
   push hl
@@ -969,114 +1075,7 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
   ld [_c], a
   ld [_l], a
 .drawTextBoxLoop; while (1) {
-    ld de, str_buffer
-    ld bc, 46
-    ld a, [_c]
-    and a
-    jp nz, .shouldUseUpper
-  .shouldUseLower;   if (c == 0) {
-    ld hl, UpperCase
-    call mem_Copy;     memcpy(str_buff, upper_case, 46);
-    ld bc, LowerCaseTitle;set_win_tiles(2,15,10,1,"lower case");
-    jr .setCaseTiles
-  .shouldUseUpper;   else {
-    ld hl, LowerCase
-    call mem_Copy;     memcpy(str_buff, lower_case, 46);
-    ld bc, UpperCaseTitle;set_win_tiles(2,15,10,1,"UPPER CASE");
-  .setCaseTiles
-    ld d, 2
-    ld e, 15
-    ld h, 10
-    ld l, 1
-    call gbdk_SetWinTiles
-    xor a
-    ld [_j], a
-  .rowLoop;   for (j = 0; j < 5; ++j) {
-      xor a
-      ld [_i], a
-      ld a, [_j]
-      add a, a; j*2
-      ld de, 18
-      call math_Multiply; hl = 18 * j*2
-      ld b, h
-      ld c, l ;bc = j*2*18
-      ld hl, tile_buffer
-      add hl, bc ;tiles[j*2*18]
-      push hl
-      ld hl, str_buffer
-      ld a, [_j]
-      add a, a ;_j*2
-      add a, a ;_j*4
-      add a, a ;_j*8
-      ld c, a
-      ld a, [_j]
-      add a, c ;_j*9
-      ld c, a
-      add hl, bc ;str_buff[j*9]
-      ld d, h
-      ld e, l
-      pop hl ;tiles[j*2*18]
-    .collumnLoop1;     for (i = 0; i < 9; ++i) {
-        ld a, [_x]
-        ld b, a
-        ld a, [_i]
-        sub a, b
-        jr nz, .notArrowTile
-        ld a, [_y]
-        ld b, a
-        ld a, [_j]
-        sub a, b
-        jr nz, .notArrowTile;(x==i && y==j) ?
-        ld a, ARROW_RIGHT
-        ld [hli], a;tiles[j*2*18+i*2] = ARROW_RIGHT
-        jr .setCharTile
-      .notArrowTile
-        ld a, " "
-        ld [hli], a;tiles[j*2*18+i*2] = 0
-      .setCharTile
-        ld a, [de]
-        ld [hli], a ;tiles[j*2*18+i*2+1] = str_buff[j*9+i];
-        inc de
-        ld a, [_i]
-        inc a
-        ld [_i], a
-        sub 9
-        jr nz, .collumnLoop1
-
-      xor a
-      ld [_i], a
-      ld a, [_j]
-      add a, a; j*2
-      inc a ;j*2+1
-      ld de, 18
-      call math_Multiply; hl = 18 * (j*2+1)
-      ld b, h
-      ld c, l ;bc = (j*2+1)*18
-      ld hl, tile_buffer
-      add hl, bc ;tiles[(j*2+1)*18]
-    .collumnLoop2 ;for (i = 0; i < 9; ++i) {
-        ld a, " "
-        ld [hli], a ;tiles[(j*2+1)*18+i*2]   = " ";
-        ld [hli], a ;tiles[(j*2+1)*18+i*2+1] = " ";
-      ld a, [_i]
-      inc a
-      ld [_i], a
-      sub 9
-      jp nz, .collumnLoop2
-
-    ld a, [_j]
-    inc a
-    ld [_j], a
-    sub a, 5
-    jp nz, .rowLoop
-
-    ld d, 1
-    ld e, 5
-    ld h, 18
-    ld l, 9
-    ld bc, tile_buffer
-    call gbdk_SetWinTiles;set_win_tiles(1,5,18,9,tile_buffer);
-
+    call DrawTextEntryBox
     WAITPAD_UP
   .moveArrowLoop;   while (1) {
       call UpdateInput;k = joypad();
@@ -1097,7 +1096,7 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
       ld a, e
       ld [_y], a;--y;
       call MoveTextEntryArrow;  move_text_entry_arrow(x,y,x,y-1);
-      jp .startOrAPressed
+      jp .aPressed
     .moveDown;else if (button_state & PADF_DOWN && y < 5) {
       ld a, [button_state]
       and PADF_DOWN
@@ -1109,7 +1108,7 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
       ld a, e
       ld [_y], a;++y;
       call MoveTextEntryArrow;  move_text_entry_arrow(x,y,x,y+1);
-      jp .startOrAPressed
+      jp .aPressed
     .moveLeft;else if (button_state & PADF_LEFT && x > 0 && y < 5) {
       ld a, [button_state]
       and PADF_LEFT
@@ -1124,25 +1123,25 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
       ld a, d
       ld [_x], a;  --x;
       call MoveTextEntryArrow;  move_text_entry_arrow(x,y,x-1,y);
-      jp .startOrAPressed
+      jp .aPressed
     .moveRight;else if (button_state & PADF_RIGHT && x < 8 && y < 5) {
       ld a, [button_state]
       and PADF_RIGHT
-      jr z, .startOrAPressed
+      jr z, .aPressed
       ld a, [_y]
       sub a, 5
-      jr z, .startOrAPressed
+      jr z, .aPressed
       ld a, [_x]
       sub a, 8
-      jr z, .startOrAPressed
+      jr z, .aPressed
       inc d
       ld a, d
       ld [_x], a;  ++x;
       call MoveTextEntryArrow;  move_text_entry_arrow(x,y,x+1,y);
-    .startOrAPressed ;if (button_state & (PADF_START | PADF_A)) {
+    .aPressed
       ld a, [button_state]
-      and PADF_START | PADF_A
-      jp z, .bPressed
+      and PADF_A
+      jp z, .startPressed
       ld a, [_y]
       sub a, 5
       jr nz, .testEnd;       if (y == 5) {
@@ -1153,6 +1152,11 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
       sub a, b
       ld [_c], a ;c = 1-c;
       jp .exitMoveArrowLoop ;break;
+    .startPressed
+      ld a, [button_state]
+      and a, PADF_START
+      jp z, .bPressed
+      jr .submitText
     .testEnd ; else if (str_buff[y*9+x] == '\x1E') {
       ld hl, str_buffer
       xor a
@@ -1172,6 +1176,7 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
       ld a, [hl]
       cp "↵" ;0x1E
       jp nz, .testLength
+    .submitText
       ld a, [_l]
       and a
       jp nz, .exitTextEntryLoop ; if (l > 0) return;
@@ -1261,6 +1266,9 @@ UIShowTextEntry:: ; de = title, hl = str, c = max_len
   pop af;str
   pop af;a = max_len
 
+  ld a, KB_MODE_BUTTONS
+  ld [kb_mode], a
+
   POP_VAR _y
   POP_VAR _x
   POP_VAR _l
@@ -1320,6 +1328,7 @@ UIShowListMenu::; a = draw flags, bc = xy, de = wh, text = [str_buffer], title =
   push bc ;xy
   push de ;wh
   call DrawUIBox
+  TRAMPOLINE DetectKeyboard
   pop de ;wh
   pop bc ;xy
   pop af ;draw flags
@@ -1507,7 +1516,7 @@ UIShowNumberPicker::; a = draw flags, bc = xy, de = wh, hl = max/start nums, ret
   push bc;xy
   push af;draw flags
   call DrawUIBox
-
+  TRAMPOLINE DetectKeyboard
   ld a, "x"
   ld [name_buffer], a
   pop af;draw flags

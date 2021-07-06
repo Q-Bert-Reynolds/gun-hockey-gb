@@ -43,7 +43,7 @@ PS2HandleKeycode::;a = scan code
   jp nc, PS2HandleError
   cp a, $69;lowest index in jump table
   jp c, PS2HandleError
-  ld hl, PS2ExtendedJumpTable-$69;nice
+  ld hl, PS2ExtendedJumpTable-$69*2
 .lookupAddress
   add hl, bc
   add hl, bc;addresses are 2 bytes, add index twice
@@ -228,9 +228,32 @@ PS2HandleDeleteKey:
   ret
 
 PS2HandleArrowKey:;scan code in a
+  ld b, a
   call PS2CheckReleaseFlag
   ret nz;if release flag set, return early
-  ret
+  ld a, PS2_KEY_UP_ARROW
+  cp a, b
+  jr z, .upPressed
+  ld a, PS2_KEY_LEFT_ARROW
+  cp a, b
+  jr z, .leftPressed
+  ld a, PS2_KEY_DOWN_ARROW
+  cp a, b
+  jr z, .downPressed
+  ; ld a, PS2_KEY_RIGHT_ARROW
+  ; cp a, b
+.rightPressed
+  ld a, PADF_RIGHT
+  jp KBHandleArrowKey
+.leftPressed
+  ld a, PADF_LEFT
+  jp KBHandleArrowKey
+.upPressed
+  ld a, PADF_UP
+  jp KBHandleArrowKey
+.downPressed
+  ld a, PADF_DOWN
+  jp KBHandleArrowKey
 
 PS2HandlePageDown:
   call PS2CheckReleaseFlag

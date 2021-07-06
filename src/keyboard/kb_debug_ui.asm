@@ -48,8 +48,8 @@ ClearedDashesText: DB "_____",0
 ShiftText: DB "shift",0
 
 DrawKeyboardDebugData::
-  ld a, [kb_mode]
-  cp a, KB_MODE_PS2
+  ld a, [kb_type]
+  cp a, KB_TYPE_PS2
   jr nz, .drawIGASCII
 
 .drawPS2ASCII
