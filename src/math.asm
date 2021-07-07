@@ -457,7 +457,7 @@ math_Abs:: ;a = |a|
   ret
 
 
-math_Cos255:: ;a = cos(a) * 255 where 0 <= a <= 180 deg
+math_Cos255:: ;a = cos(a) * 255 where 0 <= a <= 180 deg, de unaffected
   ld b, a;deg
   ld a, 90
   sub a, b
@@ -468,7 +468,7 @@ math_Cos255:: ;a = cos(a) * 255 where 0 <= a <= 180 deg
   sub a, b
   ;fall through to sin
   
-math_Sin255:: ;a = sin(a) * 255 where 0 <= a <= 180 deg
+math_Sin255:: ;a = sin(a) * 255 where 0 <= a <= 180 deg, de unaffected
   cp a, 91
   jr c, .lookup
   ld b, a
@@ -482,7 +482,7 @@ math_Sin255:: ;a = sin(a) * 255 where 0 <= a <= 180 deg
   ld a, [hl]
   ret
 
-math_Cos127:: ;a = cos(a) * 127 where -127 <= a <= 127 deg
+math_Cos127:: ;a = cos(a) * 127 where -127 <= a <= 127 deg, de unaffected
   cp a, 91
   jr c, .positive
   cp a, -90
@@ -506,7 +506,7 @@ math_Cos127:: ;a = cos(a) * 127 where -127 <= a <= 127 deg
   srl a
   ret
 
-math_Sin127:: ;a = sin(a) * 127 where -127 <= a <= 127 deg
+math_Sin127:: ;a = sin(a) * 127 where -127 <= a <= 127 deg, de unaffected
   cp a, 128
   jr c, .positive
 .negative

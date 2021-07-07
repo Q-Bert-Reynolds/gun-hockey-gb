@@ -8,12 +8,8 @@ sys_info:: DB
 ;game state
 game_state:: DB
 
-;text editor
-line_buffer:: DS 1024
-line_bank:: DB
-line_address:: DW
-line_index:: DW
-line_column:: DB
+;bullets
+bullets:: DS MAX_BULLETS*6;vy,Y,y,vx,X,x
 
 ;UI
 list_selection:: DB

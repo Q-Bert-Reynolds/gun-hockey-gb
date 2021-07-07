@@ -78,6 +78,13 @@ PaletteGunHockey::
   COLOR_ALMOST_WHITE
 PALETTE_GUN_HOCKEY EQU (PaletteGunHockey-DefaultPalettes)/8
 
+PaletteGunHockeySprites::
+  COLOR_WHITE 
+  COLOR_WHITE 
+  COLOR_ALMOST_WHITE
+  COLOR_LIGHT_GREY
+PALETTE_GUN_HOCKEY_SPRITES EQU (PaletteGunHockeySprites-DefaultPalettes)/8
+
 PaletteDark::
   COLOR_ALMOST_WHITE
   COLOR_DARKER_GREY

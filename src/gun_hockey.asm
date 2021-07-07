@@ -2,6 +2,7 @@ SECTION "Gun Hockey", ROM0
 INCLUDE "img/bg_tiles.asm"
 INCLUDE "img/left_gun.asm"
 INCLUDE "img/right_gun.asm"
+INCLUDE "img/sprites.asm"
 
 GUN_SPEED EQU 180
 
@@ -26,11 +27,15 @@ BackgroundTiles:
   DB $7,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$8
 
 GunHockey::
+  call SetupGunHockey
+  call GunHockeyGameLoop
+  ret 
+
+SetupGunHockey::
   di
   DISPLAY_OFF
-  ld a, DMG_PAL_INVERT
-  ld [rBGP], a
 
+.backgroundTiles
   ld hl, _BgTilesTiles
   ld de, _VRAM9000
   ld bc, _BG_TILES_TILE_COUNT*16
@@ -61,52 +66,79 @@ GunHockey::
   ld a, 192
   call SetBkgTilesWithOffset
 
+.sprites
+  ld hl, _SpritesTiles
+  ld de, _VRAM8000
+  ld bc, _SPRITES_TILE_COUNT*16
+  call mem_CopyVRAM
+
+.palettes
+  ld a, DMG_PAL_INVERT
+  ld [rBGP], a
+
+  ld a, DMG_PAL_DLWW
+  ld [rOBP0], a
+  ld [rOBP1], a
+
   xor a
   ld hl, PaletteGunHockey
-  call GBCSetPalette
+  call GBCSetBackgroundPalette
 
+  xor a
+  ld hl, PaletteGunHockeySprites
+  call GBCSetSpritePalette
+
+.music
   PLAY_SONG tessie_data, 1
 
   DISPLAY_ON
   ei
+  ret
 
+GunHockeyGameLoop::
 .loop
     call UpdateInput
+    ;TODO: exchange inputs with player 2
 
+  .checkUp
     ld a, [button_state]
     and a, PADF_UP
-    jr nz, .upPressed
-
-    ld a, [button_state]
-    and a, PADF_DOWN
-    jr nz, .downPressed
-
-    jr .checkExit
-
+    jr z, .checkDown
   .upPressed
     ld a, [left_gun_angle]
     add a, GUN_SPEED
     ld [left_gun_angle], a
-    jr nc, .wait
+    jr nc, .checkFire
     ld a, [left_gun_angle+1]
     inc a
     ld [left_gun_angle+1], a
     call UpdateLeftGun
-    jr .wait
+    jr .checkFire
 
+  .checkDown
+    ld a, [button_state]
+    and a, PADF_DOWN
+    jr z, .checkFire
   .downPressed
     ld a, [left_gun_angle]
     sub a, GUN_SPEED
     ld [left_gun_angle], a
-    jr nc, .wait
+    jr nc, .checkFire
     ld a, [left_gun_angle+1]
     dec a
     ld [left_gun_angle+1], a
     call UpdateLeftGun
-    jr .wait
 
-  .checkExit
-    JUMP_TO_IF_BUTTONS .exit, PADF_A | PADF_START
+  .checkFire
+    ld a, [button_state]
+    and a, PADF_A | PADF_B
+    jr z, .updateBullets
+  .firePressed
+    call FireBulletFromLeftGun
+
+  .updateBullets
+    call UpdateBullets
+    call DrawBullets
 
   .wait
     call gbdk_WaitVBL
@@ -114,6 +146,84 @@ GunHockey::
 .exit
   ret
 
+DrawBullets::
+  ld hl, bullets
+  ld de, oam_buffer
+  ld b, 40;max sprites
+  ld c, MAX_BULLETS;TODO: skip unused bullets
+.loop
+    inc hl;skip vy
+    ld a, [hli];Y
+    ld [de], a;sprite y
+    inc de
+    inc hl;skip y
+
+    inc hl;skip vx
+    ld a, [hli];X
+    ld [de], a;sprite x
+    inc de
+    inc hl;skip x
+
+    xor a
+    ld [de], a;sprite tile
+    inc de
+
+    ld [de], a;sprite flags
+    inc de
+
+    dec b
+    jr nz, .loop
+  ret
+
+UpdateBullets::
+  ld hl, bullets
+  ld c, MAX_BULLETS
+.loop
+    push bc;bullets left
+    ld a, [hli];vy
+    push hl;Y
+    call math_AddSignedByteToWord
+    pop hl;Y
+    inc hl;y
+    inc hl;vx
+    ld a, [hli];vx
+    push hl;X
+    call math_AddSignedByteToWord
+    pop hl;X
+    inc hl;x
+    inc hl;next vy
+    pop bc
+    dec c;bullets left
+    jr nz, .loop
+  ret
+
+FireBulletFromLeftGun::
+  ;TODO: check ammo first
+  ;TODO: find inactive bullet (ie. x|X = 0)
+  ;get vx,vy from angle
+  ld a, [left_gun_angle+1]
+  call math_Sin127
+  cpl
+  inc a;flip y velo
+  ld e, a;vy
+  ld a, [left_gun_angle+1]
+  call math_Cos127
+  ld d, a;vx
+  
+  ld hl, bullets;vy,Y,y,vx,X,x
+  ld a, e
+  ld [hli], a;vy
+  ld a, 70
+  ld [hli], a;Y
+  xor a
+  ld [hli], a;y
+  ld a, d
+  ld [hli], a;vx
+  ld a, 4
+  ld [hli], a;X
+  xor a
+  ld [hli], a;x
+  ret
 
 LeftGun:
   DW _LeftGun0TileMap

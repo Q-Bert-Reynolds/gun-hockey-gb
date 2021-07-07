@@ -913,6 +913,40 @@ GBCSetPalette::;a = palette id, hl = colors
     jr nz, .loopColors
   ret
 
+GBCSetBackgroundPalette::;a = palette id, hl = colors
+  sla a
+  sla a
+  sla a
+  or a, BCPSF_AUTOINC
+  ld [rBCPS], a
+  ld a, 8;4 colors, 2 bytes each
+.loopColors
+    push af
+    LCD_WAIT_VRAM
+    ld a, [hli]
+    ldh [rBCPD], a
+    pop af
+    dec a
+    jr nz, .loopColors
+  ret
+
+GBCSetSpritePalette::;a = palette id, hl = colors
+  sla a
+  sla a
+  sla a
+  or a, OCPSF_AUTOINC
+  ld [rOCPS], a
+  ld a, 8;4 colors, 2 bytes each
+.loopColors
+    push af
+    LCD_WAIT_VRAM
+    ld a, [hli]
+    ldh [rOCPD], a
+    pop af
+    dec a
+    jr nz, .loopColors
+  ret
+
 ;----------------------------------------------------------------------
 ;
 ; SetColorBlocks - sets rectangles of color in screenspace
