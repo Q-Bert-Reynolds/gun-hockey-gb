@@ -64,7 +64,6 @@ INNING_BOTTOM     EQU 28
 INNING_TOP        EQU 29
 
 ;sizes
-MAX_BULLETS      EQU 128
 NAME_LENGTH      EQU 16
 BUFFER_SIZE      EQU 1024;32x32 tiles
 INPUT_REPEAT     EQU 6;Input read multiple times in a row to reduce switch bounce issues. See: https://gbdev.io/pandocs/#joypad-input

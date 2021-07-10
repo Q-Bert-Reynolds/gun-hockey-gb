@@ -8,8 +8,18 @@ sys_info:: DB
 ;game state
 game_state:: DB
 
-;bullets
+;gun hockey
+moving_objects::
+puck::
+.vy::DB
+.Y:: DB
+.y:: DB
+.vx::DB
+.X:: DB
+.x:: DB
 bullets:: DS MAX_BULLETS*6;vy,Y,y,vx,X,x
+left_gun_angle:: DW
+right_gun_angle:: DW
 
 ;UI
 list_selection:: DB
@@ -66,9 +76,6 @@ rLCDInterrupt:: DW
 ;Input
 last_button_state:: DB
 button_state:: DB
-
-left_gun_angle:: DW
-right_gun_angle:: DW
 
 SECTION "Buffers", WRAMX
 ;buffers

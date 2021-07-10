@@ -4,7 +4,10 @@ INCLUDE "img/left_gun.asm"
 INCLUDE "img/right_gun.asm"
 INCLUDE "img/sprites.asm"
 
-GUN_SPEED EQU 180
+GUN_SPEED      EQU 200
+PHYS_POS_STEPS EQU 6
+MAX_BULLETS    EQU 36
+
 
 BackgroundTiles:
   DB $4,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$5
@@ -72,6 +75,20 @@ SetupGunHockey::
   ld bc, _SPRITES_TILE_COUNT*16
   call mem_CopyVRAM
 
+.puck
+  ld hl, moving_objects
+  xor a
+  ld [hli], a;vy
+  ld a, 84
+  ld [hli], a;Y
+  xor a
+  ld [hli], a;y
+  ld [hli], a;vx
+  ld a, 84
+  ld [hli], a;X
+  xor a
+  ld [hli], a;x
+
 .palettes
   ld a, DMG_PAL_INVERT
   ld [rBGP], a
@@ -130,6 +147,9 @@ GunHockeyGameLoop::
     call UpdateLeftGun
 
   .checkFire
+    ld a, [last_button_state]
+    and a, PADF_A | PADF_B
+    jr nz, .updateBullets
     ld a, [button_state]
     and a, PADF_A | PADF_B
     jr z, .updateBullets
@@ -137,20 +157,138 @@ GunHockeyGameLoop::
     call FireBulletFromLeftGun
 
   .updateBullets
-    call UpdateBullets
-    call DrawBullets
+  REPT PHYS_POS_STEPS
+    call MoveObjects
+  ENDR
+    call CheckCollisions
+    call DrawObjects
 
   .wait
+    xor a
+    ld [vbl_timer], a
     call gbdk_WaitVBL
-    jr .loop
+    jp .loop
 .exit
   ret
 
-DrawBullets::
-  ld hl, bullets
+CheckCollisions::
+  ld hl, moving_objects+6
+  ld c, MAX_BULLETS
+.loop
+    call Collide
+    dec c
+    jr nz, .loop
+  ret
+
+Collide::;hl = obj, returns next obj in hl
+.storeYVelocity
+  ld a, [hli]
+  ld [_w], a;y vel
+.storeYPos
+  ld a, [hli]
+  ld [_y], a;y pos
+  ld b, a
+  ld a, [puck.Y]
+.skipFractionalYPosition
+  inc hl
+.yTest
+  sub a, b;puck.y - bullet.y
+  cp a, 9
+  jr c, .storeXVelocity
+  cp a, -4
+  jr nc, .storeXVelocity
+.failedYTest
+  inc hl
+  inc hl
+  inc hl
+  ret
+.storeXVelocity
+  ld a, [hli]
+  ld [_v], a;x vel
+.storeXPos
+  ld a, [hli]
+  ld [_x], a;x pos
+  ld b, a
+  ld a, [puck.X]
+.skipFractionalXPosition
+  inc hl
+.xTest
+  sub a, b;puck.y - bullet.y
+  cp a, 9
+  jr c, .collisionFound
+  cp a, -4
+  jr nc, .collisionFound
+.failedXTest
+  ret
+.collisionFound
+  push hl;next obj
+  dec hl
+  xor a
+  REPT 6
+  ld [hld], a
+  ENDR
+.calcDiff
+  ld a, [_x]
+  ld b, a
+  ld a, [puck.X]
+  sub a, b
+  ld d, a;d = dPos.x
+  ld a, [_y]
+  ld b, a
+  ld a, [puck.Y]
+  sub a, b
+  ld e, a;e = dPos.y, de = dPos
+  ld a, [_v]
+  ld b, a
+  ld a, [puck.vx]
+  sub a, b
+  ld b, a;b = dVel.x
+  ld a, [_w]
+  ld c, a
+  ld a, [puck.vy]
+  sub a, c
+  ld c, a;c = dVel.y, bc = dVel
+  push de;dPos
+  call math_Dot;hl = dot(dVel, dPos)
+  ld a, h;toss lower byte
+  pop de;dPos
+.updateYVel
+  push de;dPos
+  push af;truncated dot(dVel, dPos)
+  ld d, 0
+  call math_Multiply;hl = dPos.y * dot(dVel, dPos)
+  ld l, h;truncate hl
+  srl l
+  ld a, [puck.vy]
+  sub a, l;puckVel.y -= dPos.y * 0.5 * dot(dVel, dPos)
+  ld [puck.vy], a
+  ld a, [_w]
+  sla h
+  add a, h;bulletVel.y += dPos.y * 2.0 * dot(dVel, dPos)
+  ld [_w], a
+.updateXVel
+  pop af
+  pop de;dPos
+  ld e, d
+  ld d, 0
+  call math_Multiply;hl = dPos.x * dot(dVel, dPos)
+  ld l, h;truncate hl
+  srl l
+  ld a, [puck.vx]
+  sub a, l
+  ld [puck.vx], a;puckVel.x -= dPos.x * 0.5 * dot(dVel, dPos)
+  ld a, [_v]
+  sla h
+  add a, h;bulletVel.x += dPos.x * 2.0 * dot(dVel, dPos)
+  pop hl;next obj
+  ret
+
+
+DrawObjects::
+  ld hl, moving_objects
   ld de, oam_buffer
   ld b, 40;max sprites
-  ld c, MAX_BULLETS;TODO: skip unused bullets
+  ld c, 0;TODO: skip unused moving_objects
 .loop
     inc hl;skip vy
     ld a, [hli];Y
@@ -165,41 +303,78 @@ DrawBullets::
     inc hl;skip x
 
     xor a
+    cp a, c
+    jr nz, .setTile
+    ld a, 1
+  .setTile
     ld [de], a;sprite tile
     inc de
-
+  .setProps
+    xor a
     ld [de], a;sprite flags
     inc de
 
+    inc c
     dec b
     jr nz, .loop
   ret
 
-UpdateBullets::
-  ld hl, bullets
-  ld c, MAX_BULLETS
+MoveObjects::
+  ld hl, moving_objects
+  ld c, MAX_BULLETS+1
 .loop
-    push bc;bullets left
+    push bc;moving_objects left
+  .testYVelocity
     ld a, [hli];vy
-    push hl;Y
-    call math_AddSignedByteToWord
-    pop hl;Y
+    ld b, a;vy
+    cp a, 128
+    ld a, [hl];Y
+    jr nc, .checkTop;if vy < 0
+  .checkBottom;if vy >= 0
+    cp a, 152
+    jr c, .updateYPosition
+    jr .flipVY
+  .checkTop
+    cp a, 14
+    jr nc, .updateYPosition
+  .flipVY
+    ld a, b
+    cpl
+    inc a
+    ld b, a
+    dec hl
+    ld [hli], a
+  .updateYPosition
+    ld a, b
+    ADD_SIGNED_BYTE_TO_WORD;a + [hl]
     inc hl;y
     inc hl;vx
     ld a, [hli];vx
-    push hl;X
-    call math_AddSignedByteToWord
-    pop hl;X
-    inc hl;x
+  .updateXPosition
+    ADD_SIGNED_BYTE_TO_WORD
+    ld a, [hli];X
+    cp a, 164
+    jr c, .next
+  .offScreen
+    xor a
+    ld [hld], a;x
+    ld [hld], a;X
+    ld [hld], a;vx
+    ld [hld], a;y
+    ld [hld], a;Y
+    ld [hld], a;vy
+    ld de, 6
+    add hl, de
+  .next
     inc hl;next vy
     pop bc
-    dec c;bullets left
+    dec c;moving_objects left
     jr nz, .loop
   ret
 
 FireBulletFromLeftGun::
   ;TODO: check ammo first
-  ;TODO: find inactive bullet (ie. x|X = 0)
+
   ;get vx,vy from angle
   ld a, [left_gun_angle+1]
   call math_Sin127
@@ -210,16 +385,36 @@ FireBulletFromLeftGun::
   call math_Cos127
   ld d, a;vx
   
-  ld hl, bullets;vy,Y,y,vx,X,x
+  ;TODO: find inactive bullet (ie. y|Y = 0)
+  ld hl, moving_objects+6;vy,Y,y,vx,X,x
+  ld c, MAX_BULLETS
+.findBulletLoop
+    inc hl;skip vy
+    ld a, [hli]
+    ld b, a
+    ld a, [hli]
+    or a, b
+    jr z, .foundBullet
+    inc hl;skip vx
+    inc hl;skip X
+    inc hl;skip x
+    dec c
+    jr nz, .findBulletLoop
+  ret;no bullet found
+
+.foundBullet
+  dec hl
+  dec hl
+  dec hl
   ld a, e
   ld [hli], a;vy
-  ld a, 70
+  ld a, 82
   ld [hli], a;Y
   xor a
   ld [hli], a;y
   ld a, d
   ld [hli], a;vx
-  ld a, 4
+  ld a, 2
   ld [hli], a;X
   xor a
   ld [hli], a;x
@@ -247,7 +442,6 @@ UpdateLeftGun::
   ld l, a
   ld c, 15
   call math_Divide
-  ld [_breakpoint], a
   add hl, hl
   ld bc, LeftGun
   add hl, bc

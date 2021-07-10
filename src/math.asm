@@ -28,7 +28,9 @@
 ;   math_Distance
 ;     hl = xy1, de = xy2, returns distance in a
 ;   math_Length
-;     a = length(de)
+;     a = length(de);   
+;   math_LengthSq
+;     hl = d*d+e*e
 ;   math_Normalize
 ;     de = normalized(de)
 ;   math_Abs
@@ -277,6 +279,28 @@ math_TestBit:: ;tests bit d of byte e, affects z flag, all registers
   and a, e
   ret
 
+ADD_SIGNED_BYTE_TO_WORD: MACRO;a = a + [hl], doesn't affect c or hl
+  ld e, a ;put 8bit in e
+  add a, a ;bit 7 into carry
+  sbc a, a ;0 if no carry, 255 if carry
+  ld d, a
+  push hl ;address of word in hl
+  ld a, [hli]
+  ld b, a  ;first byte of word in b
+  ld a, [hld]
+  ld h, b 
+  ld l, a  ;contents of word now in hl
+  add hl, de ;add byte (de) to word (hl)
+  ld d, h
+  ld e, l ;new word now in de
+
+  pop hl ;address of word back in hl
+  ld a, d
+  ld [hli], a
+  ld a, e
+  ld [hld], a;store de in [hl]
+ENDM
+
 math_AddSignedByteToWord:: ;a = byte, [hl] = word, result in [hl], a -> 2=carry,3=borrow
   ld e, a ;put 8bit in e
   add a, a ;bit 7 into carry
@@ -366,6 +390,21 @@ math_Length:: ;de = xy, returns length in a
   add a, l;b+0.5*a*a/b
   ret
 
+math_LengthSq:: ;de = xy, returns length squared in hl
+  push de
+  ld a, e
+  ld d, 0
+  call math_Multiply;hl = e*e
+  pop de
+  push hl
+  ld a, d
+  ld e, d
+  ld d, 0
+  call math_Multiply;hl = d*d
+  pop de;e*e
+  add hl, de
+  ret
+
 math_Normalize:: ;de = xy, returns |xy| in de
   push de;xy
   call math_Length
@@ -449,6 +488,14 @@ _Lerp:
   ld a, l
   ret
 
+MATH_ABS: MACRO
+  cp a, 128
+  jr c, .skip\@
+  cpl
+  inc a
+.skip\@
+ENDM
+
 math_Abs:: ;a = |a|
   cp a, 128
   ret c
@@ -456,6 +503,20 @@ math_Abs:: ;a = |a|
   inc a
   ret
 
+math_Dot::; hl = b*d + c*e
+  push de
+  ld a, c
+  ld d, 0
+  call math_Multiply;c*e
+  pop de
+  ld e, d
+  ld a, b
+  ld d, 0
+  ld b, h
+  ld c, l;bc = c*e
+  call math_Multiply;b*d
+  add hl, bc;b*d+c*e
+  ret
 
 math_Cos255:: ;a = cos(a) * 255 where 0 <= a <= 180 deg, de unaffected
   ld b, a;deg
