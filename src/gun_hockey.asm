@@ -4,7 +4,7 @@ INCLUDE "img/left_gun.asm"
 INCLUDE "img/right_gun.asm"
 INCLUDE "img/sprites.asm"
 
-GUN_SPEED      EQU 200
+GUN_SPEED      EQU 1
 PHYS_POS_STEPS EQU 6
 MAX_BULLETS    EQU 36
 
@@ -76,18 +76,7 @@ SetupGunHockey::
   call mem_CopyVRAM
 
 .puck
-  ld hl, moving_objects
-  xor a
-  ld [hli], a;vy
-  ld a, 84
-  ld [hli], a;Y
-  xor a
-  ld [hli], a;y
-  ld [hli], a;vx
-  ld a, 84
-  ld [hli], a;X
-  xor a
-  ld [hli], a;x
+  call ResetPuck
 
 .palettes
   ld a, DMG_PAL_INVERT
@@ -125,10 +114,10 @@ GunHockeyGameLoop::
     ld a, [left_gun_angle]
     add a, GUN_SPEED
     ld [left_gun_angle], a
-    jr nc, .checkFire
-    ld a, [left_gun_angle+1]
-    inc a
-    ld [left_gun_angle+1], a
+    ; jr nc, .checkFire
+    ; ld a, [left_gun_angle+1]
+    ; inc a
+    ; ld [left_gun_angle+1], a
     call UpdateLeftGun
     jr .checkFire
 
@@ -140,25 +129,26 @@ GunHockeyGameLoop::
     ld a, [left_gun_angle]
     sub a, GUN_SPEED
     ld [left_gun_angle], a
-    jr nc, .checkFire
-    ld a, [left_gun_angle+1]
-    dec a
-    ld [left_gun_angle+1], a
+    ; jr nc, .checkFire
+    ; ld a, [left_gun_angle+1]
+    ; dec a
+    ; ld [left_gun_angle+1], a
     call UpdateLeftGun
 
   .checkFire
     ld a, [last_button_state]
     and a, PADF_A | PADF_B
-    jr nz, .updateBullets
+    jr nz, .updateObjects
     ld a, [button_state]
     and a, PADF_A | PADF_B
-    jr z, .updateBullets
+    jr z, .updateObjects
   .firePressed
     call FireBulletFromLeftGun
 
-  .updateBullets
+  .updateObjects
   REPT PHYS_POS_STEPS
-    call MoveObjects
+    call MovePuck
+    call MoveBullets
   ENDR
     call CheckCollisions
     call DrawObjects
@@ -169,6 +159,20 @@ GunHockeyGameLoop::
     call gbdk_WaitVBL
     jp .loop
 .exit
+  ret
+
+ResetPuck::
+  xor a
+  ld [puck.vy], a
+  ld a, 84
+  ld [puck.Y], a
+  xor a
+  ld [puck.y], a
+  ld [puck.vx], a
+  ld a, 84
+  ld [puck.X], a
+  xor a
+  ld [puck.x], a
   ret
 
 CheckCollisions::
@@ -252,34 +256,35 @@ Collide::;hl = obj, returns next obj in hl
   call math_Dot;hl = dot(dVel, dPos)
   ld a, h;toss lower byte
   pop de;dPos
-.updateYVel
+.updateXVel
   push de;dPos
   push af;truncated dot(dVel, dPos)
   ld d, 0
-  call math_Multiply;hl = dPos.y * dot(dVel, dPos)
+  call math_Multiply;hl = dPos.x * dot(dVel, dPos)
   ld l, h;truncate hl
-  srl l
-  ld a, [puck.vy]
-  sub a, l;puckVel.y -= dPos.y * 0.5 * dot(dVel, dPos)
-  ld [puck.vy], a
-  ld a, [_w]
-  sla h
-  add a, h;bulletVel.y += dPos.y * 2.0 * dot(dVel, dPos)
-  ld [_w], a
-.updateXVel
-  pop af
+  ; srl l
+  ld a, [puck.vx]
+  sub a, l;puckVel.x -= dPos.x * 0.5 * dot(dVel, dPos)
+  ld [puck.vx], a
+  ; ld a, [_v]
+  ; sla h
+  ; add a, h;bulletVel.x += dPos.x * 2.0 * dot(dVel, dPos)
+  ; ld [_v], a
+.updateYVel
+  pop af;truncated dot(dVel, dPos)
   pop de;dPos
   ld e, d
   ld d, 0
-  call math_Multiply;hl = dPos.x * dot(dVel, dPos)
+  call math_Multiply;hl = dPos.y * dot(dVel, dPos)
   ld l, h;truncate hl
-  srl l
-  ld a, [puck.vx]
+  ; srl l
+  ld a, [puck.vy]
   sub a, l
-  ld [puck.vx], a;puckVel.x -= dPos.x * 0.5 * dot(dVel, dPos)
-  ld a, [_v]
-  sla h
-  add a, h;bulletVel.x += dPos.x * 2.0 * dot(dVel, dPos)
+  ld [puck.vy], a;puckVel.y -= dPos.y * 0.5 * dot(dVel, dPos)
+  ; ld a, [_w]
+  ; sla h
+  ; add a, h;bulletVel.y += dPos.y * 2.0 * dot(dVel, dPos)
+  ;TODO: set bullet velo
   pop hl;next obj
   ret
 
@@ -319,11 +324,42 @@ DrawObjects::
     jr nz, .loop
   ret
 
-MoveObjects::
-  ld hl, moving_objects
-  ld c, MAX_BULLETS+1
+MovePuck::
+.testYVelocity
+  ld a, [puck.vy]
+  cp a, 128
+  ld a, [puck.Y]
+  jr nc, .checkTop;if vy < 0
+.checkBottom;if vy >= 0
+  cp a, 146
+  jr c, .updateYPosition
+  jr .flipVY
+.checkTop
+  cp a, 18
+  jr nc, .updateYPosition
+.flipVY
+  ld a, [puck.vy]
+  cpl
+  inc a
+  ld [puck.vy], a
+.updateYPosition
+  ld a, [puck.vy]
+  ld hl, puck.Y
+  ADD_SIGNED_BYTE_TO_WORD;a + [hl]
+.updateXPosition
+  ld a, [puck.vx]
+  ld hl, puck.X
+  ADD_SIGNED_BYTE_TO_WORD
+  ld a, [puck.X]
+  cp a, 164
+  ret c
+  jp ResetPuck
+
+MoveBullets::
+  ld hl, bullets
+  ld c, MAX_BULLETS
 .loop
-    push bc;moving_objects left
+    push bc;bullets left
   .testYVelocity
     ld a, [hli];vy
     ld b, a;vy
@@ -368,7 +404,7 @@ MoveObjects::
   .next
     inc hl;next vy
     pop bc
-    dec c;moving_objects left
+    dec c;bullets left
     jr nz, .loop
   ret
 
@@ -376,12 +412,12 @@ FireBulletFromLeftGun::
   ;TODO: check ammo first
 
   ;get vx,vy from angle
-  ld a, [left_gun_angle+1]
+  ld a, [left_gun_angle];+1]
   call math_Sin127
   cpl
   inc a;flip y velo
   ld e, a;vy
-  ld a, [left_gun_angle+1]
+  ld a, [left_gun_angle];+1]
   call math_Cos127
   ld d, a;vx
   
@@ -436,7 +472,7 @@ LeftGun:
   DW _LeftGun12TileMap
 
 UpdateLeftGun::
-  ld a, [left_gun_angle+1];-90 to 90
+  ld a, [left_gun_angle];+1];-90 to 90
   add a, 90 ;0 to 180
   ld h, 0
   ld l, a
