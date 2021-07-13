@@ -5,7 +5,7 @@ INCLUDE "img/right_gun.asm"
 INCLUDE "img/sprites.asm"
 
 GUN_SPEED      EQU 1
-PHYS_POS_STEPS EQU 6
+PHYS_POS_STEPS EQU 2
 MAX_BULLETS    EQU 36
 
 
@@ -63,11 +63,7 @@ SetupGunHockey::
   ld bc, _RIGHT_GUN_TILE_COUNT*16
   call mem_CopyVRAM
 
-  ld bc, _RightGun6TileMap
-  ld de, $1207
-  ld hl, $0204
-  ld a, 192
-  call SetBkgTilesWithOffset
+  call UpdateRightGun
 
 .sprites
   ld hl, _SpritesTiles
@@ -147,6 +143,7 @@ GunHockeyGameLoop::
 
   .updateObjects
   REPT PHYS_POS_STEPS
+    call MoveBullets
     call MovePuck
     call MoveBullets
   ENDR
@@ -226,12 +223,13 @@ Collide::;hl = obj, returns next obj in hl
   ret
 .collisionFound
   push hl;next obj
+.removeBullet;TODO:remove this section
   dec hl
   xor a
   REPT 6
   ld [hld], a
   ENDR
-.calcDiff
+.calcDPos
   ld a, [_x]
   ld b, a
   ld a, [puck.X]
@@ -242,6 +240,7 @@ Collide::;hl = obj, returns next obj in hl
   ld a, [puck.Y]
   sub a, b
   ld e, a;e = dPos.y, de = dPos
+.calcDVel
   ld a, [_v]
   ld b, a
   ld a, [puck.vx]
@@ -252,38 +251,33 @@ Collide::;hl = obj, returns next obj in hl
   ld a, [puck.vy]
   sub a, c
   ld c, a;c = dVel.y, bc = dVel
+.calcDVelDotDPos
   push de;dPos
   call math_Dot;hl = dot(dVel, dPos)
-  ld a, h;toss lower byte
   pop de;dPos
 .updateXVel
   push de;dPos
-  push af;truncated dot(dVel, dPos)
-  ld d, 0
-  call math_Multiply;hl = dPos.x * dot(dVel, dPos)
-  ld l, h;truncate hl
-  ; srl l
+  push hl;dot(dVel, dPos)
+  ld a, d;x
+  ld d, h
+  ld e, l
+  call math_SignedMultiply;hl = dPos.x * dot(dVel, dPos)
   ld a, [puck.vx]
-  sub a, l;puckVel.x -= dPos.x * 0.5 * dot(dVel, dPos)
+  sub a, h;puckVel.x -= dPos.x * 0.5 * dot(dVel, dPos)
   ld [puck.vx], a
-  ; ld a, [_v]
-  ; sla h
-  ; add a, h;bulletVel.x += dPos.x * 2.0 * dot(dVel, dPos)
-  ; ld [_v], a
+  ld a, [_v]
+  add a, h;bulletVel.x += dPos.x * 2.0 * dot(dVel, dPos)
+  ld [_v], a
 .updateYVel
-  pop af;truncated dot(dVel, dPos)
-  pop de;dPos
-  ld e, d
-  ld d, 0
-  call math_Multiply;hl = dPos.y * dot(dVel, dPos)
-  ld l, h;truncate hl
-  ; srl l
+  pop de;dot(dVel, dPos)
+  pop hl;dPos
+  ld a, l;de = y
+  call math_SignedMultiply;hl = dPos.y * dot(dVel, dPos)
   ld a, [puck.vy]
-  sub a, l
-  ld [puck.vy], a;puckVel.y -= dPos.y * 0.5 * dot(dVel, dPos)
-  ; ld a, [_w]
-  ; sla h
-  ; add a, h;bulletVel.y += dPos.y * 2.0 * dot(dVel, dPos)
+  sub a, h;puckVel.y -= dPos.y * 0.5 * dot(dVel, dPos)
+  ld [puck.vy], a
+  ld a, [_w]
+  add a, h;bulletVel.y += dPos.y * 2.0 * dot(dVel, dPos)
   ;TODO: set bullet velo
   pop hl;next obj
   ret
@@ -488,5 +482,41 @@ UpdateLeftGun::
   ld de, $0007
   ld hl, $0204
   ld a, 128
+  call SetBkgTilesWithOffset
+  ret
+
+
+RightGun:
+  DW _RightGun0TileMap
+  DW _RightGun1TileMap
+  DW _RightGun2TileMap
+  DW _RightGun3TileMap
+  DW _RightGun4TileMap
+  DW _RightGun5TileMap
+  DW _RightGun6TileMap
+  DW _RightGun7TileMap
+  DW _RightGun8TileMap
+  DW _RightGun9TileMap
+  DW _RightGun10TileMap
+  DW _RightGun11TileMap
+  DW _RightGun12TileMap
+
+UpdateRightGun::
+  ld a, [right_gun_angle];+1];-90 to 90
+  add a, 90 ;0 to 180
+  ld h, 0
+  ld l, a
+  ld c, 15
+  call math_Divide
+  add hl, hl
+  ld bc, RightGun
+  add hl, bc
+  ld a, [hli]
+  ld c, a
+  ld a, [hli]
+  ld b, a
+  ld de, $1207
+  ld hl, $0204
+  ld a, 192
   call SetBkgTilesWithOffset
   ret

@@ -503,18 +503,18 @@ math_Abs:: ;a = |a|
   inc a
   ret
 
-math_Dot::; hl = b*d + c*e
+math_Dot::; hl = b * d + c * e
   push de
   ld a, c
   ld d, 0
-  call math_Multiply;c*e
+  call math_SignedMultiply;c*e
   pop de
   ld e, d
   ld a, b
   ld d, 0
   ld b, h
   ld c, l;bc = c*e
-  call math_Multiply;b*d
+  call math_SignedMultiply;b*d
   add hl, bc;b*d+c*e
   ret
 
